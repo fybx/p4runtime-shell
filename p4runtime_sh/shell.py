@@ -24,12 +24,16 @@ from traitlets.config.loader import Config
 from IPython.terminal.prompts import Prompts, Token
 import os.path
 import sys
-from p4runtime_sh.p4runtime import (P4RuntimeClient, P4RuntimeException, parse_p4runtime_error,
-                                    SSLOptions)
+from .p4runtime import (
+    P4RuntimeClient,
+    P4RuntimeException,
+    parse_p4runtime_error,
+    SSLOptions,
+)
 from p4.v1 import p4runtime_pb2
 from p4.config.v1 import p4info_pb2
 from . import bytes_utils
-from . global_options import global_options, Options
+from .global_options import global_options, Options
 from .context import P4RuntimeEntity, P4Type, Context
 from .utils import UserError, InvalidP4InfoError
 import google.protobuf.text_format
@@ -129,12 +133,12 @@ def _sub_pkt_md(field, value, pcontext):
 def _gen_pretty_print_proto_field(substitutions, pcontext):
     def myPrintField(self, field, value):
         self._PrintFieldName(field)
-        self.out.write(' ')
+        self.out.write(" ")
         if field.type == descriptor.FieldDescriptor.TYPE_BYTES:
             # TODO(antonin): any kind of checks required?
-            self.out.write('\"')
-            self.out.write(''.join('\\\\x{:02x}'.format(b) for b in value))
-            self.out.write('\"')
+            self.out.write('"')
+            self.out.write("".join("\\\\x{:02x}".format(b) for b in value))
+            self.out.write('"')
         else:
             self.PrintFieldValue(field, value)
         subs = None
@@ -143,7 +147,7 @@ def _gen_pretty_print_proto_field(substitutions, pcontext):
         if subs and field.name in subs and value != 0:
             name = subs[field.name](field, value, pcontext)
             self.out.write(' ("{}")'.format(name))
-        self.out.write(' ' if self.as_one_line else '\n')
+        self.out.write(" " if self.as_one_line else "\n")
 
     return myPrintField
 
@@ -164,7 +168,11 @@ def _repr_pretty_proto(msg, substitutions):
         pcontext.stack.append(message)
         pcontext.skip_one = True
         s = google.protobuf.text_format.MessageToString(
-            message, indent=indent, as_one_line=as_one_line, message_formatter=message_formatter)
+            message,
+            indent=indent,
+            as_one_line=as_one_line,
+            message_formatter=message_formatter,
+        )
         s = s[indent:-1]
         pcontext.stack.pop()
         return s
@@ -173,9 +181,12 @@ def _repr_pretty_proto(msg, substitutions):
     # future, but this enables us to keep the code fairly small.
     saved_printer = google.protobuf.text_format._Printer.PrintField
     google.protobuf.text_format._Printer.PrintField = _gen_pretty_print_proto_field(
-        substitutions, pcontext)
+        substitutions, pcontext
+    )
 
-    s = google.protobuf.text_format.MessageToString(msg, message_formatter=message_formatter)
+    s = google.protobuf.text_format.MessageToString(
+        msg, message_formatter=message_formatter
+    )
 
     google.protobuf.text_format._Printer.PrintField = saved_printer
 
@@ -184,9 +195,11 @@ def _repr_pretty_proto(msg, substitutions):
 
 def _repr_pretty_p4info(msg):
     substitutions = {
-        "Table": {"const_default_action_id": _sub_object,
-                  "implementation_id": _sub_object,
-                  "direct_resource_ids": _sub_object},
+        "Table": {
+            "const_default_action_id": _sub_object,
+            "implementation_id": _sub_object,
+            "direct_resource_ids": _sub_object,
+        },
         "ActionRef": {"id": _sub_object},
         "ActionProfile": {"table_ids": _sub_object},
         "DirectCounter": {"direct_table_id": _sub_object},
@@ -210,7 +223,7 @@ def _repr_pretty_p4runtime(msg):
         "DigestEntry": {"digest_id": _sub_object},
         "DigestListAck": {"digest_id": _sub_object},
         "DigestList": {"digest_id": _sub_object},
-        "PacketMetadata": {"metadata_id": _sub_pkt_md}
+        "PacketMetadata": {"metadata_id": _sub_pkt_md},
     }
     return _repr_pretty_proto(msg, substitutions)
 
@@ -227,7 +240,9 @@ You can access any field from the message with <self>.<field name>.
 You can access the name directly with <self>.name.
 You can access the id directly with <self>.id.
 If you need the underlying Protobuf message, you can access it with msg().
-""".format(obj_type.pretty_name, self.name)
+""".format(
+            obj_type.pretty_name, self.name
+        )
 
     def __dir__(self):
         d = ["info", "msg", "name", "id"]
@@ -266,7 +281,9 @@ If you need the underlying Protobuf message, you can access it with msg().
             for action in t.action_refs:
                 print(context.get_name_from_id(action.id))
         else:
-            raise UserError("'actions' is only available for tables and action profiles")
+            raise UserError(
+                "'actions' is only available for tables and action profiles"
+            )
 
 
 class P4Objects:
@@ -280,7 +297,11 @@ To access a specific {pname}, use {p4info}['<name>'].
 You can use this class to iterate over all {pname} instances:
 \tfor x in {p4info}:
 \t\tprint(x.id)
-""".format(pname=obj_type.pretty_name, pnames=obj_type.pretty_names, p4info=obj_type.p4info_name)
+""".format(
+            pname=obj_type.pretty_name,
+            pnames=obj_type.pretty_names,
+            p4info=obj_type.p4info_name,
+        )
 
     def __call__(self):
         for name in self._names:
@@ -292,8 +313,9 @@ You can use this class to iterate over all {pname} instances:
     def __getitem__(self, name):
         obj = context.get_obj(self._obj_type, name)
         if obj is None:
-            raise UserError("{} '{}' does not exist".format(
-                self._obj_type.pretty_name, name))
+            raise UserError(
+                "{} '{}' does not exist".format(self._obj_type.pretty_name, name)
+            )
         return P4Object(self._obj_type, obj)
 
     def __setitem__(self, name, value):
@@ -352,7 +374,8 @@ You may also use <self>.set(<f>='<value>')
             return self._fields_suffixes[name]
         raise UserError(
             "'{}' is not a valid match field name, nor a valid unique suffix, "
-            "for table '{}'".format(name, self._table_name))
+            "for table '{}'".format(name, self._table_name)
+        )
 
     def _get_mf(self, name):
         fullname = self._full_field_name(name)
@@ -409,7 +432,7 @@ You may also use <self>.set(<f>='<value>')
 
     def _parse_mf_lpm(self, s, field_info):
         try:
-            prefix, length = s.split('/')
+            prefix, length = s.split("/")
             prefix, length = prefix.strip(), length.strip()
         except ValueError:
             prefix = s
@@ -426,7 +449,8 @@ You may also use <self>.set(<f>='<value>')
     def _sanitize_and_convert_mf_lpm(self, prefix, length, field_info):
         if length == 0:
             raise UserError(
-                "Ignoring LPM don't care match (prefix length of 0) as per P4Runtime spec")
+                "Ignoring LPM don't care match (prefix length of 0) as per P4Runtime spec"
+            )
 
         mf = p4runtime_pb2.FieldMatch()
         mf.field_id = field_info.id
@@ -440,7 +464,7 @@ You may also use <self>.set(<f>='<value>')
         barray = bytearray(prefix)
         transformed = False
         r = length % 8
-        byte_mask = 0xff & ((0xff << (8 - r)))
+        byte_mask = 0xFF & ((0xFF << (8 - r)))
         if barray[first_byte_masked] & byte_mask != barray[first_byte_masked]:
             transformed = True
             barray[first_byte_masked] = barray[first_byte_masked] & byte_mask
@@ -450,14 +474,16 @@ You may also use <self>.set(<f>='<value>')
                 transformed = True
                 barray[i] = 0
         if transformed:
-            _print("LPM value was transformed to conform to the P4Runtime spec "
-                   "(trailing bits must be unset)")
+            _print(
+                "LPM value was transformed to conform to the P4Runtime spec "
+                "(trailing bits must be unset)"
+            )
         mf.lpm.value = bytes(bytes_utils.make_canonical_if_option_set(barray))
         return mf
 
     def _parse_mf_ternary(self, s, field_info):
         try:
-            value, mask = s.split('&&&')
+            value, mask = s.split("&&&")
             value, mask = value.strip(), mask.strip()
         except ValueError:
             value = s.strip()
@@ -469,8 +495,10 @@ You may also use <self>.set(<f>='<value>')
         return self._sanitize_and_convert_mf_ternary(value, mask, field_info)
 
     def _sanitize_and_convert_mf_ternary(self, value, mask, field_info):
-        if int.from_bytes(mask, byteorder='big') == 0:
-            raise UserError("Ignoring ternary don't care match (mask of 0s) as per P4Runtime spec")
+        if int.from_bytes(mask, byteorder="big") == 0:
+            raise UserError(
+                "Ignoring ternary don't care match (mask of 0s) as per P4Runtime spec"
+            )
 
         mf = p4runtime_pb2.FieldMatch()
         mf.field_id = field_info.id
@@ -482,19 +510,22 @@ You may also use <self>.set(<f>='<value>')
                 transformed = True
                 barray[i] = barray[i] & mask[i]
         if transformed:
-            _print("Ternary value was transformed to conform to the P4Runtime spec "
-                   "(masked off bits must be unset)")
+            _print(
+                "Ternary value was transformed to conform to the P4Runtime spec "
+                "(masked off bits must be unset)"
+            )
         mf.ternary.value = bytes(bytes_utils.make_canonical_if_option_set(barray))
         mf.ternary.mask = bytes_utils.make_canonical_if_option_set(mask)
         return mf
 
     def _parse_mf_range(self, s, field_info):
         try:
-            start, end = s.split('..')
+            start, end = s.split("..")
             start, end = start.strip(), end.strip()
         except ValueError:
-            raise UserError("'{}' does not specify a valid range, use '<start>..<end>'").format(
-                s)
+            raise UserError(
+                "'{}' does not specify a valid range, use '<start>..<end>'"
+            ).format(s)
 
         start = bytes_utils.parse_value(start, field_info.bitwidth)
         end = bytes_utils.parse_value(end, field_info.bitwidth)
@@ -504,13 +535,14 @@ You may also use <self>.set(<f>='<value>')
     def _sanitize_and_convert_mf_range(self, start, end, field_info):
         # It's a bit silly: the fields are converted from str to int to bytes by bytes_utils, then
         # converted back to int here...
-        start_ = int.from_bytes(start, byteorder='big')
-        end_ = int.from_bytes(end, byteorder='big')
+        start_ = int.from_bytes(start, byteorder="big")
+        end_ = int.from_bytes(end, byteorder="big")
         if start_ > end_:
             raise UserError("Invalid range match: start is greater than end")
         if start_ == 0 and end_ == ((1 << field_info.bitwidth) - 1):
             raise UserError(
-                "Ignoring range don't care match (all possible values) as per P4Runtime spec")
+                "Ignoring range don't care match (all possible values) as per P4Runtime spec"
+            )
         mf = p4runtime_pb2.FieldMatch()
         mf.field_id = field_info.id
         mf.range.low = bytes_utils.make_canonical_if_option_set(start)
@@ -536,7 +568,7 @@ You may also use <self>.set(<f>='<value>')
         self._fields_suffixes = suffixes
 
     def __str__(self):
-        return '\n'.join([str(mf) for name, mf in self._mk.items()])
+        return "\n".join([str(mf) for name, mf in self._mk.items()])
 
     def _repr_pretty_(self, p, cycle):
         for name, mf in self._mk.items():
@@ -589,7 +621,9 @@ class Action:
         if name not in self._params:
             raise UserError(
                 "'{}' is not a valid action parameter name for action '{}'".format(
-                    name, self.action_name))
+                    name, self.action_name
+                )
+            )
         return self._params[name]
 
     def __setattr__(self, name, value):
@@ -628,7 +662,7 @@ class Action:
         return msg
 
     def _from_msg(self, msg):
-        assert(self._action_id == msg.action_id)
+        assert self._action_id == msg.action_id
         self._param_values.clear()
         for p in msg.params:
             p_name = context.get_param_name(self.action_name, p.param_id)
@@ -677,8 +711,9 @@ class _EntityBase:
         p.text(_repr_pretty_p4runtime(self._entry))
 
     def __getattr__(self, name):
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            self.__class__.__name__, name))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(self.__class__.__name__, name)
+        )
 
     def msg(self):
         self._update_msg()
@@ -694,13 +729,17 @@ class _EntityBase:
 
     def insert(self):
         if self._modify_only:
-            raise NotImplementedError("Insert not supported for {}".format(self._entity_type.name))
+            raise NotImplementedError(
+                "Insert not supported for {}".format(self._entity_type.name)
+            )
         logging.debug("Inserting entry")
         self._write(p4runtime_pb2.Update.INSERT)
 
     def delete(self):
         if self._modify_only:
-            raise NotImplementedError("Delete not supported for {}".format(self._entity_type.name))
+            raise NotImplementedError(
+                "Delete not supported for {}".format(self._entity_type.name)
+            )
         logging.debug("Deleting entry")
         self._write(p4runtime_pb2.Update.DELETE)
 
@@ -743,7 +782,9 @@ class _EntityBase:
                     return next(self)
 
                 if isinstance(self._entity, _P4EntityBase):
-                    e = type(self._entity)(self._entity.name)  # create new instance of same entity
+                    e = type(self._entity)(
+                        self._entity.name
+                    )  # create new instance of same entity
                 else:
                     e = type(self._entity)()
                 msg = getattr(entity, self._entity._entity_type.name)
@@ -761,7 +802,9 @@ class _EntityBase:
 
 
 class _P4EntityBase(_EntityBase):
-    def __init__(self, p4_type, entity_type, p4runtime_cls, name=None, modify_only=False):
+    def __init__(
+        self, p4_type, entity_type, p4runtime_cls, name=None, modify_only=False
+    ):
         super().__init__(entity_type, p4runtime_cls, modify_only)
         self._p4_type = p4_type
         if name is None:
@@ -781,8 +824,11 @@ class _P4EntityBase(_EntityBase):
 class ActionProfileMember(_P4EntityBase):
     def __init__(self, action_profile_name=None):
         super().__init__(
-            P4Type.action_profile, P4RuntimeEntity.action_profile_member,
-            p4runtime_pb2.ActionProfileMember, action_profile_name)
+            P4Type.action_profile,
+            P4RuntimeEntity.action_profile_member,
+            p4runtime_pb2.ActionProfileMember,
+            action_profile_name,
+        )
         self.member_id = 0
         self.action = None
         self._valid_action_ids = self._get_action_set()
@@ -807,7 +853,9 @@ m.action['<pM>'] = ...
 m.insert
 
 For information about how to read members, use <self>.read?
-""".format(action_profile_name)
+""".format(
+            action_profile_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -839,8 +887,11 @@ For information about how to read members, use <self>.read?
             if not isinstance(value, Action):
                 raise UserError("action must be an instance of Action")
             if not self._is_valid_action_id(value._action_id):
-                raise UserError("action '{}' is not a valid action for this action profile".format(
-                    value.action_name))
+                raise UserError(
+                    "action '{}' is not a valid action for this action profile".format(
+                        value.action_name
+                    )
+                )
         super().__setattr__(name, value)
 
     def _is_valid_action_id(self, action_id):
@@ -854,7 +905,7 @@ For information about how to read members, use <self>.read?
 
     def _from_msg(self, msg):
         self.member_id = msg.member_id
-        if msg.HasField('action'):
+        if msg.HasField("action"):
             action = msg.action
             action_name = context.get_name_from_id(action.action_id)
             self.action = Action(action_name)
@@ -880,6 +931,7 @@ class GroupMember:
     You can set / get attributes member_id (required), weight (default 1), watch (default 0),
     watch_port (default "").
     """
+
     def __init__(self, member_id=None, weight=1, watch=0, watch_port=b""):
         if member_id is None:
             raise UserError("member_id is required")
@@ -941,8 +993,11 @@ class GroupMember:
 class ActionProfileGroup(_P4EntityBase):
     def __init__(self, action_profile_name=None):
         super().__init__(
-            P4Type.action_profile, P4RuntimeEntity.action_profile_group,
-            p4runtime_pb2.ActionProfileGroup, action_profile_name)
+            P4Type.action_profile,
+            P4RuntimeEntity.action_profile_group,
+            p4runtime_pb2.ActionProfileGroup,
+            action_profile_name,
+        )
         self.group_id = 0
         self.max_size = 0
         self.members = []
@@ -965,7 +1020,9 @@ g.add(<member id 2>)
 # OR g.add(<member id 1>).add(<member id 2>)
 
 For information about how to read groups, use <self>.read?
-""".format(action_profile_name)
+""".format(
+            action_profile_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -1042,10 +1099,14 @@ def _get_action_profile(table_name):
     except KeyError:
         raise InvalidP4InfoError(
             "Invalid implementation_id {} for table '{}'".format(
-                implementation_id, table_name))
+                implementation_id, table_name
+            )
+        )
     ap = context.get_obj(P4Type.action_profile, implementation_name)
     if ap is None:
-        raise InvalidP4InfoError("Unknown implementation for table '{}'".format(table_name))
+        raise InvalidP4InfoError(
+            "Unknown implementation for table '{}'".format(table_name)
+        )
     return ap
 
 
@@ -1057,6 +1118,7 @@ class OneshotAction:
     You can set / get attributes action (required), weight (default 1), watch (default 0),
     watch_port (default "").
     """
+
     def __init__(self, action=None, weight=1, watch=0, watch_port=b""):
         if action is None:
             raise UserError("action is required")
@@ -1118,13 +1180,16 @@ class Oneshot:
         if not ap.with_selector:
             raise UserError(
                 "Cannot create Oneshot instance for a table with an action profile "
-                "without selector")
+                "without selector"
+            )
         self.__doc__ = """
 A "oneshot" action set for table '{}'.
 
 To add an action to the set, use <self>.add(<Action instance>).
 You can also access the set of actions with <self>.actions (which is a Python list).
-""".format(self.table_name)
+""".format(
+            self.table_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -1143,8 +1208,11 @@ You can also access the set of actions with <self>.actions (which is a Python li
                 if type(m) is not OneshotAction:
                     raise UserError("actions must be a list of OneshotAction objects")
                 if not self._is_valid_action_id(value.action._action_id):
-                    raise UserError("action '{}' is not a valid action for table {}".format(
-                        value.action.action_name, self.table_name))
+                    raise UserError(
+                        "action '{}' is not a valid action for table {}".format(
+                            value.action.action_name, self.table_name
+                        )
+                    )
         super().__setattr__(name, value)
 
     def _is_valid_action_id(self, action_id):
@@ -1168,7 +1236,9 @@ You can also access the set of actions with <self>.actions (which is a Python li
             action_name = context.get_name_from_id(action.action.action_id)
             a = Action(action_name)
             a._from_msg(action.action)
-            self.actions.append(OneshotAction(a, action.weight, action.watch, action.watch_port))
+            self.actions.append(
+                OneshotAction(a, action.weight, action.watch, action.watch_port)
+            )
 
     def __str__(self):
         return str(self.msg())
@@ -1183,7 +1253,10 @@ class _CounterData:
         attrs = []
         if counter_type in {p4info_pb2.CounterSpec.BYTES, p4info_pb2.CounterSpec.BOTH}:
             attrs.append("byte_count")
-        if counter_type in {p4info_pb2.CounterSpec.PACKETS, p4info_pb2.CounterSpec.BOTH}:
+        if counter_type in {
+            p4info_pb2.CounterSpec.PACKETS,
+            p4info_pb2.CounterSpec.BOTH,
+        }:
             attrs.append("packet_count")
         return attrs
 
@@ -1201,9 +1274,14 @@ class _CounterData:
             super().__setattr__(name, value)
             return
         if name not in self._attrs:
-            type_name = p4info_pb2._COUNTERSPEC_UNIT.values_by_number[self._counter_type].name
-            raise UserError("Counter '{}' is of type '{}', you cannot set '{}'".format(
-                self._counter_name, type_name, name))
+            type_name = p4info_pb2._COUNTERSPEC_UNIT.values_by_number[
+                self._counter_type
+            ].name
+            raise UserError(
+                "Counter '{}' is of type '{}', you cannot set '{}'".format(
+                    self._counter_name, type_name, name
+                )
+            )
         if type(value) is not int:
             raise UserError("{} must be an integer".format(name))
         setattr(self._msg, name, value)
@@ -1211,8 +1289,9 @@ class _CounterData:
     def __getattr__(self, name):
         if name == "byte_count" or name == "packet_count":
             return getattr(self._msg, name)
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            self.__class__.__name__, name))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(self.__class__.__name__, name)
+        )
 
     def msg(self):
         return self._msg
@@ -1271,8 +1350,9 @@ class _MeterConfig:
     def __getattr__(self, name):
         if name in self._attrs:
             return getattr(self._msg, name)
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            self.__class__.__name__, name))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(self.__class__.__name__, name)
+        )
 
     def msg(self):
         return self._msg
@@ -1329,8 +1409,9 @@ class _IdleTimeout:
     def __getattr__(self, name):
         if name in self._attrs:
             return getattr(self._msg, name)
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            self.__class__.__name__, name))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(self.__class__.__name__, name)
+        )
 
     def msg(self):
         return self._msg
@@ -1383,8 +1464,11 @@ class TableEntry(_P4EntityBase):
 
     def __init__(self, table_name=None):
         super().__init__(
-            P4Type.table, P4RuntimeEntity.table_entry,
-            p4runtime_pb2.TableEntry, table_name)
+            P4Type.table,
+            P4RuntimeEntity.table_entry,
+            p4runtime_pb2.TableEntry,
+            table_name,
+        )
         self.match = MatchKey(table_name, self._info.match_fields)
         self._action_spec_type = self._ActionSpecType.NONE
         self._action_spec = None
@@ -1400,7 +1484,7 @@ class TableEntry(_P4EntityBase):
         self._direct_counter = None
         self._direct_meter = None
         for res_id in self._info.direct_resource_ids:
-            prefix = (res_id & 0xff000000) >> 24
+            prefix = (res_id & 0xFF000000) >> 24
             if prefix == p4info_pb2.P4Ids.DIRECT_COUNTER:
                 self._direct_counter = context.get_obj_by_id(res_id)
             elif prefix == p4info_pb2.P4Ids.DIRECT_METER:
@@ -1421,7 +1505,9 @@ Use <self>.info to display the P4Info entry for this table.
 
 To set the match key, use <self>.match['<field name>'] = <expr>.
 Type <self>.match? for more details.
-""".format(table_name)
+""".format(
+            table_name
+        )
         if self._direct_counter is not None:
             self.__doc__ += """
 To set the counter spec, use <self>.counter_data.byte_count and/or <self>.counter_data.packet_count.
@@ -1501,9 +1587,17 @@ For information about how to read table entries, use <self>.read?
 
     def __dir__(self):
         d = super().__dir__() + [
-            "match", "priority", "is_default", "idle_timeout_ns", "metadata",
-            "clear_action", "clear_match", "clear_counter_data", "clear_meter_config",
-            "clear_time_since_last_hit"]
+            "match",
+            "priority",
+            "is_default",
+            "idle_timeout_ns",
+            "metadata",
+            "clear_action",
+            "clear_match",
+            "clear_counter_data",
+            "clear_meter_config",
+            "clear_time_since_last_hit",
+        ]
         if self._support_groups:
             d.extend(["member_id", "group_id", "oneshot"])
         elif self._support_members:
@@ -1535,7 +1629,8 @@ For information about how to read table entries, use <self>.read?
             raise UserError("member_id must be an integer")
         if not self._support_members:
             raise UserError(
-                "Table does not have an action profile and therefore does not support members")
+                "Table does not have an action profile and therefore does not support members"
+            )
         super().__setattr__("_action_spec_type", self._ActionSpecType.MEMBER_ID)
         super().__setattr__("_action_spec", member_id)
 
@@ -1550,7 +1645,8 @@ For information about how to read table entries, use <self>.read?
         if not self._support_groups:
             raise UserError(
                 "Table does not have an action profile with selector "
-                "and therefore does not support groups")
+                "and therefore does not support groups"
+            )
         super().__setattr__("_action_spec_type", self._ActionSpecType.GROUP_ID)
         super().__setattr__("_action_spec", group_id)
 
@@ -1565,10 +1661,14 @@ For information about how to read table entries, use <self>.read?
         if self._info.implementation_id != 0:
             raise UserError(
                 "Table has an implementation and therefore does not support direct actions "
-                "(P4Runtime 1.0 doesn't support writing the default action for indirect tables")
+                "(P4Runtime 1.0 doesn't support writing the default action for indirect tables"
+            )
         if not self._is_valid_action_id(action._action_id):
-            raise UserError("action '{}' is not a valid action for this table".format(
-                action.action_name))
+            raise UserError(
+                "action '{}' is not a valid action for this table".format(
+                    action.action_name
+                )
+            )
         super().__setattr__("_action_spec_type", self._ActionSpecType.DIRECT_ACTION)
         super().__setattr__("_action_spec", action)
 
@@ -1583,7 +1683,8 @@ For information about how to read table entries, use <self>.read?
         if not self._support_groups:
             raise UserError(
                 "Table does not have an action profile with selector "
-                "and therefore does not support oneshot programming")
+                "and therefore does not support oneshot programming"
+            )
         if self.name != oneshot.table_name:
             raise UserError("This Oneshot instance was not created for this table")
         super().__setattr__("_action_spec_type", self._ActionSpecType.ONESHOT)
@@ -1654,14 +1755,16 @@ For information about how to read table entries, use <self>.read?
                 raise UserError("Table has no direct counter")
             if self._counter_data is None:
                 self._counter_data = _CounterData(
-                    self._direct_counter.preamble.name, self._direct_counter.spec.unit)
+                    self._direct_counter.preamble.name, self._direct_counter.spec.unit
+                )
             return self._counter_data
         if name == "meter_config":
             if self._direct_meter is None:
                 raise UserError("Table has no direct meter")
             if self._meter_config is None:
                 self._meter_config = _MeterConfig(
-                    self._direct_meter.preamble.name, self._direct_meter.spec.unit)
+                    self._direct_meter.preamble.name, self._direct_meter.spec.unit
+                )
             return self._meter_config
         if name == "time_since_last_hit":
             if self._idle_timeout_behavior is None:
@@ -1695,27 +1798,29 @@ For information about how to read table entries, use <self>.read?
         for mf in msg.match:
             mf_name = context.get_mf_name(self.name, mf.field_id)
             self.match._mk[mf_name] = mf
-        if msg.action.HasField('action'):
+        if msg.action.HasField("action"):
             action = msg.action.action
             action_name = context.get_name_from_id(action.action_id)
             self.action = Action(action_name)
             self.action._from_msg(action)
-        elif msg.action.HasField('action_profile_member_id'):
+        elif msg.action.HasField("action_profile_member_id"):
             self.member_id = msg.action.action_profile_member_id
-        elif msg.action.HasField('action_profile_group_id'):
+        elif msg.action.HasField("action_profile_group_id"):
             self.group_id = msg.action.action_profile_group_id
-        elif msg.action.HasField('action_profile_action_set'):
+        elif msg.action.HasField("action_profile_action_set"):
             self.oneshot = Oneshot(self.name)
             self.oneshot._from_msg(msg.action.action_profile_action_set)
-        if msg.HasField('counter_data'):
+        if msg.HasField("counter_data"):
             self._counter_data = _CounterData(
-                self._direct_counter.preamble.name, self._direct_counter.spec.unit)
+                self._direct_counter.preamble.name, self._direct_counter.spec.unit
+            )
             self._counter_data._from_msg(msg.counter_data)
         else:
             self._counter_data = None
-        if msg.HasField('meter_config'):
+        if msg.HasField("meter_config"):
             self._meter_config = _MeterConfig(
-                self._direct_meter.preamble.name, self._direct_meter.spec.unit)
+                self._direct_meter.preamble.name, self._direct_meter.spec.unit
+            )
             self._meter_config._from_msg(msg.meter_config)
         else:
             self._meter_config = None
@@ -1760,11 +1865,11 @@ For information about how to read table entries, use <self>.read?
         elif self._action_spec_type == self._ActionSpecType.ONESHOT:
             entry.action.action_profile_action_set.CopyFrom(self._action_spec.msg())
         if self._counter_data is None:
-            entry.ClearField('counter_data')
+            entry.ClearField("counter_data")
         else:
             entry.counter_data.CopyFrom(self._counter_data.msg())
         if self._meter_config is None:
-            entry.ClearField('meter_config')
+            entry.ClearField("meter_config")
         else:
             entry.meter_config.CopyFrom(self._meter_config.msg())
         if self._time_since_last_hit is None:
@@ -1777,7 +1882,8 @@ For information about how to read table entries, use <self>.read?
         if self.is_default and self.match._count() > 0:
             raise UserError(
                 "Match key must be empty for default entry, use <self>.is_default = False "
-                "or <self>.match.clear (whichever one is appropriate)")
+                "or <self>.match.clear (whichever one is appropriate)"
+            )
 
     def clear_action(self):
         """Clears the action spec for the TableEntry."""
@@ -1808,8 +1914,11 @@ class _CounterEntryBase(_P4EntityBase):
         self._data = None
 
     def __dir__(self):
-        return super().__dir__() + _CounterData.attrs_for_counter_type(self._counter_type) + [
-            "clear_data"]
+        return (
+            super().__dir__()
+            + _CounterData.attrs_for_counter_type(self._counter_type)
+            + ["clear_data"]
+        )
 
     def __call__(self, **kwargs):
         for name, value in kwargs.items():
@@ -1824,7 +1933,8 @@ class _CounterEntryBase(_P4EntityBase):
             raise UserError("Cannot change counter name")
         if name == "byte_count" or name == "packet_count":
             self._data = _CounterData.set_count(
-                self._data, self.name, self._counter_type, name, value)
+                self._data, self.name, self._counter_type, name, value
+            )
             return
         if name == "data":
             if value is None:
@@ -1836,7 +1946,8 @@ class _CounterEntryBase(_P4EntityBase):
     def __getattr__(self, name):
         if name == "byte_count" or name == "packet_count":
             self._data, r = _CounterData.get_count(
-                self._data, self.name, self._counter_type, name)
+                self._data, self.name, self._counter_type, name
+            )
             return r
         if name == "data":
             if self._data is None:
@@ -1846,7 +1957,7 @@ class _CounterEntryBase(_P4EntityBase):
 
     def _from_msg(self, msg):
         self._entry.CopyFrom(msg)
-        if msg.HasField('data'):
+        if msg.HasField("data"):
             self._data = _CounterData(self.name, self._counter_type)
             self._data._from_msg(msg.data)
         else:
@@ -1854,7 +1965,7 @@ class _CounterEntryBase(_P4EntityBase):
 
     def _update_msg(self):
         if self._data is None:
-            self._entry.ClearField('data')
+            self._entry.ClearField("data")
         else:
             self._entry.data.CopyFrom(self._data.msg())
 
@@ -1866,9 +1977,12 @@ class _CounterEntryBase(_P4EntityBase):
 class CounterEntry(_CounterEntryBase):
     def __init__(self, counter_name=None):
         super().__init__(
-            P4Type.counter, P4RuntimeEntity.counter_entry,
-            p4runtime_pb2.CounterEntry, counter_name,
-            modify_only=True)
+            P4Type.counter,
+            P4RuntimeEntity.counter_entry,
+            p4runtime_pb2.CounterEntry,
+            counter_name,
+            modify_only=True,
+        )
         self._entry.counter_id = self.id
         self.__doc__ = """
 An entry for counter '{}'
@@ -1882,7 +1996,9 @@ Access byte count and packet count with <self>.byte_count / <self>.packet_count.
 
 To read from the counter, use <self>.read
 To write to the counter, use <self>.modify
-""".format(counter_name)
+""".format(
+            counter_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -1891,7 +2007,7 @@ To write to the counter, use <self>.modify
     def __setattr__(self, name, value):
         if name == "index":
             if value is None:
-                self._entry.ClearField('index')
+                self._entry.ClearField("index")
                 return
             if type(value) is not int:
                 raise UserError("index must be an integer")
@@ -1924,15 +2040,21 @@ To write to the counter, use <self>.modify
 class DirectCounterEntry(_CounterEntryBase):
     def __init__(self, direct_counter_name=None):
         super().__init__(
-            P4Type.direct_counter, P4RuntimeEntity.direct_counter_entry,
-            p4runtime_pb2.DirectCounterEntry, direct_counter_name,
-            modify_only=True)
+            P4Type.direct_counter,
+            P4RuntimeEntity.direct_counter_entry,
+            p4runtime_pb2.DirectCounterEntry,
+            direct_counter_name,
+            modify_only=True,
+        )
         self._direct_table_id = self._info.direct_table_id
         try:
             self._direct_table_name = context.get_name_from_id(self._direct_table_id)
         except KeyError:
-            raise InvalidP4InfoError("direct_table_id {} is not a valid table id".format(
-                self._direct_table_id))
+            raise InvalidP4InfoError(
+                "direct_table_id {} is not a valid table id".format(
+                    self._direct_table_id
+                )
+            )
         self._table_entry = TableEntry(self._direct_table_name)
         self.__doc__ = """
 An entry for direct counter '{}'
@@ -1948,7 +2070,9 @@ Access byte count and packet count with <self>.byte_count / <self>.packet_count.
 
 To read from the counter, use <self>.read
 To write to the counter, use <self>.modify
-""".format(direct_counter_name, self._direct_table_name)
+""".format(
+            direct_counter_name, self._direct_table_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -1964,8 +2088,11 @@ To write to the counter, use <self>.modify
             if not isinstance(value, TableEntry):
                 raise UserError("table_entry must be an instance of TableEntry")
             if value.name != self._direct_table_name:
-                raise UserError("This DirectCounterEntry is for table '{}'".format(
-                    self._direct_table_name))
+                raise UserError(
+                    "This DirectCounterEntry is for table '{}'".format(
+                        self._direct_table_name
+                    )
+                )
             self._table_entry = value
             return
         super().__setattr__(name, value)
@@ -1980,13 +2107,13 @@ To write to the counter, use <self>.modify
     def _update_msg(self):
         super()._update_msg()
         if self._table_entry is None:
-            self._entry.ClearField('table_entry')
+            self._entry.ClearField("table_entry")
         else:
             self._entry.table_entry.CopyFrom(self._table_entry.msg())
 
     def _from_msg(self, msg):
         super()._from_msg(msg)
-        if msg.HasField('table_entry'):
+        if msg.HasField("table_entry"):
             self._table_entry._from_msg(msg.table_entry)
         else:
             self._table_entry = None
@@ -2030,7 +2157,8 @@ class _MeterEntryBase(_P4EntityBase):
             raise UserError("Cannot change meter name")
         if name in _MeterConfig.attrs():
             self._config = _MeterConfig.set_param(
-                self._config, self.name, self._meter_type, name, value)
+                self._config, self.name, self._meter_type, name, value
+            )
             return
         if name == "config":
             if value is None:
@@ -2042,7 +2170,8 @@ class _MeterEntryBase(_P4EntityBase):
     def __getattr__(self, name):
         if name in _MeterConfig.attrs():
             self._config, r = _MeterConfig.get_param(
-                self._config, self.name, self._meter_type, name)
+                self._config, self.name, self._meter_type, name
+            )
             return r
         if name == "config":
             if self._config is None:
@@ -2052,7 +2181,7 @@ class _MeterEntryBase(_P4EntityBase):
 
     def _from_msg(self, msg):
         self._entry.CopyFrom(msg)
-        if msg.HasField('config'):
+        if msg.HasField("config"):
             self._config = _MeterConfig(self.name, self._meter_type)
             self._config._from_msg(msg.config)
         else:
@@ -2060,7 +2189,7 @@ class _MeterEntryBase(_P4EntityBase):
 
     def _update_msg(self):
         if self._config is None:
-            self._entry.ClearField('config')
+            self._entry.ClearField("config")
         else:
             self._entry.config.CopyFrom(self._config.msg())
 
@@ -2072,9 +2201,12 @@ class _MeterEntryBase(_P4EntityBase):
 class MeterEntry(_MeterEntryBase):
     def __init__(self, meter_name=None):
         super().__init__(
-            P4Type.meter, P4RuntimeEntity.meter_entry,
-            p4runtime_pb2.MeterEntry, meter_name,
-            modify_only=True)
+            P4Type.meter,
+            P4RuntimeEntity.meter_entry,
+            p4runtime_pb2.MeterEntry,
+            meter_name,
+            modify_only=True,
+        )
         self._entry.meter_id = self.id
         self.__doc__ = """
 An entry for meter '{}'
@@ -2092,7 +2224,9 @@ Access meter rates and burst sizes with:
 
 To read from the meter, use <self>.read
 To write to the meter, use <self>.modify
-""".format(meter_name)
+""".format(
+            meter_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -2101,7 +2235,7 @@ To write to the meter, use <self>.modify
     def __setattr__(self, name, value):
         if name == "index":
             if value is None:
-                self._entry.ClearField('index')
+                self._entry.ClearField("index")
                 return
             if type(value) is not int:
                 raise UserError("index must be an integer")
@@ -2134,15 +2268,21 @@ To write to the meter, use <self>.modify
 class DirectMeterEntry(_MeterEntryBase):
     def __init__(self, direct_meter_name=None):
         super().__init__(
-            P4Type.direct_meter, P4RuntimeEntity.direct_meter_entry,
-            p4runtime_pb2.DirectMeterEntry, direct_meter_name,
-            modify_only=True)
+            P4Type.direct_meter,
+            P4RuntimeEntity.direct_meter_entry,
+            p4runtime_pb2.DirectMeterEntry,
+            direct_meter_name,
+            modify_only=True,
+        )
         self._direct_table_id = self._info.direct_table_id
         try:
             self._direct_table_name = context.get_name_from_id(self._direct_table_id)
         except KeyError:
-            raise InvalidP4InfoError("direct_table_id {} is not a valid table id".format(
-                self._direct_table_id))
+            raise InvalidP4InfoError(
+                "direct_table_id {} is not a valid table id".format(
+                    self._direct_table_id
+                )
+            )
         self._table_entry = TableEntry(self._direct_table_name)
         self.__doc__ = """
 An entry for direct meter '{}'
@@ -2162,7 +2302,9 @@ Access meter rates and burst sizes with:
 
 To read from the meter, use <self>.read
 To write to the meter, use <self>.modify
-""".format(direct_meter_name, self._direct_table_name)
+""".format(
+            direct_meter_name, self._direct_table_name
+        )
         self._init = True
 
     def __dir__(self):
@@ -2178,8 +2320,11 @@ To write to the meter, use <self>.modify
             if not isinstance(value, TableEntry):
                 raise UserError("table_entry must be an instance of TableEntry")
             if value.name != self._direct_table_name:
-                raise UserError("This DirectMeterEntry is for table '{}'".format(
-                    self._direct_table_name))
+                raise UserError(
+                    "This DirectMeterEntry is for table '{}'".format(
+                        self._direct_table_name
+                    )
+                )
             self._table_entry = value
             return
         super().__setattr__(name, value)
@@ -2194,13 +2339,13 @@ To write to the meter, use <self>.modify
     def _update_msg(self):
         super()._update_msg()
         if self._table_entry is None:
-            self._entry.ClearField('table_entry')
+            self._entry.ClearField("table_entry")
         else:
             self._entry.table_entry.CopyFrom(self._table_entry.msg())
 
     def _from_msg(self, msg):
         super()._from_msg(msg)
-        if msg.HasField('table_entry'):
+        if msg.HasField("table_entry"):
             self._table_entry._from_msg(msg.table_entry)
         else:
             self._table_entry = None
@@ -2232,9 +2377,15 @@ class P4RuntimeEntityBuilder:
 Usage: <var> = {}["<{} name>"]
 This is equivalent to <var> = {}(<{} name>)
 Use command '{}' to see list of {}
-        """.format(entity_cls.__name__, entity_type.name, obj_type.pretty_name,
-                   entity_cls.__name__, obj_type.pretty_name,
-                   obj_type.p4info_name, obj_type.pretty_names)
+        """.format(
+            entity_cls.__name__,
+            entity_type.name,
+            obj_type.pretty_name,
+            entity_cls.__name__,
+            obj_type.pretty_name,
+            obj_type.p4info_name,
+            obj_type.pretty_names,
+        )
 
     def _ipython_key_completions_(self):
         return self._names
@@ -2242,8 +2393,9 @@ Use command '{}' to see list of {}
     def __getitem__(self, name):
         obj = context.get_obj(self._obj_type, name)
         if obj is None:
-            raise UserError("{} '{}' does not exist".format(
-                self._obj_type.pretty_name, name))
+            raise UserError(
+                "{} '{}' does not exist".format(self._obj_type.pretty_name, name)
+            )
         return self._entity_cls(name)
 
     def __setitem__(self, name, value):
@@ -2262,6 +2414,7 @@ class Replica:
     Construct with Replica(egress_port, instance=<instance>).
     You can set / get attributes egress_port (required), instance (default 0).
     """
+
     def __init__(self, egress_port=None, instance=0):
         if egress_port is None:
             raise UserError("egress_port is required")
@@ -2306,7 +2459,8 @@ class MulticastGroupEntry(_EntityBase):
     def __init__(self, group_id=0):
         super().__init__(
             P4RuntimeEntity.packet_replication_engine_entry,
-            p4runtime_pb2.PacketReplicationEngineEntry)
+            p4runtime_pb2.PacketReplicationEngineEntry,
+        )
         self.group_id = group_id
         self.replicas = []
         self.__doc__ = """
@@ -2379,7 +2533,8 @@ class CloneSessionEntry(_EntityBase):
     def __init__(self, session_id=0):
         super().__init__(
             P4RuntimeEntity.packet_replication_engine_entry,
-            p4runtime_pb2.PacketReplicationEngineEntry)
+            p4runtime_pb2.PacketReplicationEngineEntry,
+        )
         self.session_id = session_id
         self.replicas = []
         self.cos = 0
@@ -2465,8 +2620,11 @@ Access truncation length with <self>.packet_length_bytes.
 class DigestEntry(_P4EntityBase):
     def __init__(self, digest_name=None):
         super().__init__(
-            P4Type.digest, P4RuntimeEntity.digest_entry,
-            p4runtime_pb2.DigestEntry, digest_name)
+            P4Type.digest,
+            P4RuntimeEntity.digest_entry,
+            p4runtime_pb2.DigestEntry,
+            digest_name,
+        )
         self.max_timeout_ns = 0
         self.max_list_size = 0
         self.ack_timeout_ns = 0
@@ -2475,12 +2633,18 @@ Digest entry for digest '{}'.
 Create an instance with digest_entry(<digest>).
 
 Use <self>.info to display the P4Info entry for this digest.
-""".format(digest_name)
+""".format(
+            digest_name
+        )
         self._init = True
 
     def __dir__(self):
         return super().__dir__() + [
-            "digest_id", "max_timeout_ns", "max_list_size", "ack_timeout_ns"]
+            "digest_id",
+            "max_timeout_ns",
+            "max_list_size",
+            "ack_timeout_ns",
+        ]
 
     def __setattr__(self, name, value):
         if name[0] == "_":
@@ -2562,7 +2726,7 @@ class PacketMetadata:
         # Initialize every metadata to zero value
         for md in metadata_info_list:
             self._md_info[md.name] = md
-            self._md[md.name] = self._parse_md('0', md)
+            self._md[md.name] = self._parse_md("0", md)
         self._set_docstring()
 
     def _set_docstring(self):
@@ -2613,7 +2777,7 @@ You may also use <self>.set(<md_name>='<value>')
         return self._md.values()
 
 
-class PacketIn():
+class PacketIn:
     def __init__(self):
         ctrl_pkt_md = P4Objects(P4Type.controller_packet_metadata)
         self.md_info_list = {}
@@ -2630,7 +2794,7 @@ class PacketIn():
                     break
                 packet_in_queue.put(msg)
 
-        self.recv_t = Thread(target=_packet_in_recv_func, args=(self.packet_in_queue, ))
+        self.recv_t = Thread(target=_packet_in_recv_func, args=(self.packet_in_queue,))
         self.recv_t.start()
 
     def sniff(self, function=None, timeout=None):
@@ -2657,7 +2821,9 @@ class PacketIn():
             remaining_time = timeout
             while remaining_time > 0:
                 try:
-                    msgs.append(self.packet_in_queue.get(block=True, timeout=remaining_time))
+                    msgs.append(
+                        self.packet_in_queue.get(block=True, timeout=remaining_time)
+                    )
                     remaining_time = deadline - time.time()
                 except KeyboardInterrupt:
                     # User sends an interrupt(e.g., Ctrl+C).
@@ -2674,7 +2840,7 @@ class PacketIn():
 
 
 class PacketOut:
-    def __init__(self, payload=b'', **kwargs):
+    def __init__(self, payload=b"", **kwargs):
 
         self.p4_info = P4Objects(P4Type.controller_packet_metadata)["packet_out"]
         self.payload = payload
@@ -2713,18 +2879,22 @@ class PacketOut:
         client.stream_out_q.put(msg)
 
 
-class IdleTimeoutNotification():
+class IdleTimeoutNotification:
     def __init__(self):
         self.notification_queue = queue.Queue()
 
         def _notification_recv_func(notification_queue):
             while True:
-                msg = client.get_stream_packet("idle_timeout_notification", timeout=None)
+                msg = client.get_stream_packet(
+                    "idle_timeout_notification", timeout=None
+                )
                 if not msg:
                     break
                 notification_queue.put(msg)
 
-        self.recv_t = Thread(target=_notification_recv_func, args=(self.notification_queue, ))
+        self.recv_t = Thread(
+            target=_notification_recv_func, args=(self.notification_queue,)
+        )
         self.recv_t.start()
 
     def sniff(self, function=None, timeout=None):
@@ -2751,7 +2921,9 @@ class IdleTimeoutNotification():
             remaining_time = timeout
             while remaining_time > 0:
                 try:
-                    msgs.append(self.notification_queue.get(block=True, timeout=remaining_time))
+                    msgs.append(
+                        self.notification_queue.get(block=True, timeout=remaining_time)
+                    )
                     remaining_time = deadline - time.time()
                 except KeyboardInterrupt:
                     # User sends an interrupt(e.g., Ctrl+C).
@@ -2767,7 +2939,7 @@ class IdleTimeoutNotification():
                 function(msg)
 
 
-class DigestList():
+class DigestList:
     def __init__(self):
         self.digest_list_queue = queue.Queue()
 
@@ -2783,7 +2955,9 @@ class DigestList():
                 ack.digest_ack.list_id = msg.digest.list_id
                 client.stream_out_q.put(ack)
 
-        self.recv_t = Thread(target=_notification_recv_func, args=(self.digest_list_queue, ))
+        self.recv_t = Thread(
+            target=_notification_recv_func, args=(self.digest_list_queue,)
+        )
         self.recv_t.start()
 
     def sniff(self, function=None, timeout=None):
@@ -2810,7 +2984,9 @@ class DigestList():
             remaining_time = timeout
             while remaining_time > 0:
                 try:
-                    msgs.append(self.digest_list_queue.get(block=True, timeout=remaining_time))
+                    msgs.append(
+                        self.digest_list_queue.get(block=True, timeout=remaining_time)
+                    )
                     remaining_time = deadline - time.time()
                 except KeyboardInterrupt:
                     # User sends an interrupt(e.g., Ctrl+C).
@@ -2833,13 +3009,15 @@ def Write(input_):
     """
     req = p4runtime_pb2.WriteRequest()
     if os.path.isfile(input_):
-        with open(input_, 'r') as f:
+        with open(input_, "r") as f:
             google.protobuf.text_format.Merge(f.read(), req)
         client.write(req)
     else:
         raise UserError(
             "Write only works with files at the moment and '{}' is not a file".format(
-                input_))
+                input_
+            )
+        )
 
 
 def APIVersion():
@@ -2853,87 +3031,117 @@ def APIVersion():
 # see https://ipython.readthedocs.io/en/stable/config/details.html
 class MyPrompt(Prompts):
     def in_prompt_tokens(self, cli=None):
-        return [(Token.Prompt, 'P4Runtime sh'),
-                (Token.PrompSeparator, ' >>> ')]
+        return [(Token.Prompt, "P4Runtime sh"), (Token.PrompSeparator, " >>> ")]
 
 
-FwdPipeConfig = namedtuple('FwdPipeConfig', ['p4info', 'bin'])
+FwdPipeConfig = namedtuple("FwdPipeConfig", ["p4info", "bin"])
 
 
 def get_arg_parser():
     def election_id(arg):
         try:
-            nums = tuple(int(x) for x in arg.split(','))
+            nums = tuple(int(x) for x in arg.split(","))
             if len(nums) != 2:
                 raise argparse.ArgumentError
             return nums
         except Exception:
-            raise argparse.ArgumentError(
-                "Invalid election id, expected <Hi>,<Lo>")
+            raise argparse.ArgumentError("Invalid election id, expected <Hi>,<Lo>")
 
     def pipe_config(arg):
         try:
-            paths = FwdPipeConfig(*[x for x in arg.split(',')])
+            paths = FwdPipeConfig(*[x for x in arg.split(",")])
             if len(paths) != 2:
                 raise argparse.ArgumentError
             return paths
         except Exception:
             raise argparse.ArgumentError(
-                "Invalid pipeline config, expected <p4info path>,<binary config path>")
+                "Invalid pipeline config, expected <p4info path>,<binary config path>"
+            )
 
-    parser = argparse.ArgumentParser(description='P4Runtime shell')
-    parser.add_argument('--device-id',
-                        help='Device id',
-                        type=int, action='store', default=1)
-    parser.add_argument('--grpc-addr',
-                        help='P4Runtime gRPC server address',
-                        metavar='<IP>:<port>',
-                        type=str, action='store', default='localhost:9559')
-    parser.add_argument('-v', '--verbose', help='Increase output verbosity',
-                        action='store_true')
-    parser.add_argument('--election-id',
-                        help='Election id to use',
-                        metavar='<Hi>,<Lo>',
-                        type=election_id, action='store', default=(1, 0))
-    parser.add_argument('--role-name',
-                        help='Role name of this client',
-                        type=str, action='store')
-    parser.add_argument('--config',
-                        help='If you want the shell to push a pipeline config to the server first',
-                        metavar='<p4info path (text)>,<binary config path>',
-                        type=pipe_config, action='store', default=None)
-    parser.add_argument('--ssl',
-                        help='Use secure SSL/TLS gRPC channel to connect to the P4Runtime server',
-                        action='store_true')
-    parser.add_argument('--no-ssl',
-                        help='Use insecure gRPC channel to connect to the P4Runtime server',
-                        action='store_false')
+    parser = argparse.ArgumentParser(description="P4Runtime shell")
+    parser.add_argument(
+        "--device-id", help="Device id", type=int, action="store", default=1
+    )
+    parser.add_argument(
+        "--grpc-addr",
+        help="P4Runtime gRPC server address",
+        metavar="<IP>:<port>",
+        type=str,
+        action="store",
+        default="localhost:9559",
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
+    parser.add_argument(
+        "--election-id",
+        help="Election id to use",
+        metavar="<Hi>,<Lo>",
+        type=election_id,
+        action="store",
+        default=(1, 0),
+    )
+    parser.add_argument(
+        "--role-name", help="Role name of this client", type=str, action="store"
+    )
+    parser.add_argument(
+        "--config",
+        help="If you want the shell to push a pipeline config to the server first",
+        metavar="<p4info path (text)>,<binary config path>",
+        type=pipe_config,
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
+        "--ssl",
+        help="Use secure SSL/TLS gRPC channel to connect to the P4Runtime server",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-ssl",
+        help="Use insecure gRPC channel to connect to the P4Runtime server",
+        action="store_false",
+    )
     # Setting the default to False (insecure) for backwards-compatibility. May
     # switch it to true in the future.
     parser.set_defaults(ssl=False)
-    parser.add_argument('--cacert',
-                        help='CA certificate to verify peer against, for secure connections',
-                        metavar='<path to .pem>',
-                        type=str, action='store', default=None)
-    parser.add_argument('--cert',
-                        help='Path to client certificate, for mutual authentication',
-                        metavar='<path to .pem>',
-                        type=str, action='store', default=None)
-    parser.add_argument('--private-key',
-                        help='Path to client private key, for mutual authentication',
-                        metavar='<path to .pem>',
-                        type=str, action='store', default=None)
+    parser.add_argument(
+        "--cacert",
+        help="CA certificate to verify peer against, for secure connections",
+        metavar="<path to .pem>",
+        type=str,
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
+        "--cert",
+        help="Path to client certificate, for mutual authentication",
+        metavar="<path to .pem>",
+        type=str,
+        action="store",
+        default=None,
+    )
+    parser.add_argument(
+        "--private-key",
+        help="Path to client private key, for mutual authentication",
+        metavar="<path to .pem>",
+        type=str,
+        action="store",
+        default=None,
+    )
 
     return parser
 
 
-def setup(device_id=1,
-          grpc_addr='localhost:9559',
-          election_id=(1, 0),
-          role_name=None,
-          config=None,
-          ssl_options=None,
-          verbose=True):
+def setup(
+    device_id=1,
+    grpc_addr="localhost:9559",
+    election_id=(1, 0),
+    role_name=None,
+    config=None,
+    ssl_options=None,
+    verbose=True,
+):
     global client
     logging.debug("Creating P4Runtime client")
     client = P4RuntimeClient(device_id, grpc_addr, election_id, role_name, ssl_options)
@@ -2988,19 +3196,30 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     if args.cacert and not args.ssl:
         logging.error(
-            "--cacert makes no sense if SSL/TLS is disabled, did you mean to use --ssl?")
+            "--cacert makes no sense if SSL/TLS is disabled, did you mean to use --ssl?"
+        )
     if args.cert and not args.ssl:
         logging.error(
-            "--cert makes no sense if SSL/TLS is disabled, did you mean to use --ssl?")
+            "--cert makes no sense if SSL/TLS is disabled, did you mean to use --ssl?"
+        )
     if args.private_key and not args.ssl:
         logging.error(
-            "--private-key makes no sense if SSL/TLS is disabled, did you mean to use --ssl?")
+            "--private-key makes no sense if SSL/TLS is disabled, did you mean to use --ssl?"
+        )
     ssl_options = SSLOptions(not args.ssl, args.cacert, args.cert, args.private_key)
-    setup(args.device_id, args.grpc_addr, args.election_id, args.role_name, args.config,
-          ssl_options)
+    setup(
+        args.device_id,
+        args.grpc_addr,
+        args.election_id,
+        args.role_name,
+        args.config,
+        ssl_options,
+    )
 
     c = Config()
-    c.TerminalInteractiveShell.banner1 = '*** Welcome to the IPython shell for P4Runtime ***'
+    c.TerminalInteractiveShell.banner1 = (
+        "*** Welcome to the IPython shell for P4Runtime ***"
+    )
     c.TerminalInteractiveShell.prompts_class = MyPrompt
     c.TerminalInteractiveShell.autocall = 2
     c.TerminalInteractiveShell.show_rewritten_input = False
@@ -3034,11 +3253,23 @@ def main():
     supported_entities = [
         (P4RuntimeEntity.table_entry, P4Type.table, TableEntry),
         (P4RuntimeEntity.counter_entry, P4Type.counter, CounterEntry),
-        (P4RuntimeEntity.direct_counter_entry, P4Type.direct_counter, DirectCounterEntry),
+        (
+            P4RuntimeEntity.direct_counter_entry,
+            P4Type.direct_counter,
+            DirectCounterEntry,
+        ),
         (P4RuntimeEntity.meter_entry, P4Type.meter, MeterEntry),
         (P4RuntimeEntity.direct_meter_entry, P4Type.direct_meter, DirectMeterEntry),
-        (P4RuntimeEntity.action_profile_member, P4Type.action_profile, ActionProfileMember),
-        (P4RuntimeEntity.action_profile_group, P4Type.action_profile, ActionProfileGroup),
+        (
+            P4RuntimeEntity.action_profile_member,
+            P4Type.action_profile,
+            ActionProfileMember,
+        ),
+        (
+            P4RuntimeEntity.action_profile_group,
+            P4Type.action_profile,
+            ActionProfileGroup,
+        ),
         (P4RuntimeEntity.digest_entry, P4Type.digest, DigestEntry),
     ]
     for entity, p4type, cls in supported_entities:
@@ -3046,7 +3277,9 @@ def main():
 
     user_ns["multicast_group_entry"] = MulticastGroupEntry
     user_ns["clone_session_entry"] = CloneSessionEntry
-    user_ns["packet_in"] = PacketIn()  # Singleton packet_in object to handle all packet-in cases
+    user_ns["packet_in"] = (
+        PacketIn()
+    )  # Singleton packet_in object to handle all packet-in cases
     user_ns["packet_out"] = PacketOut
     user_ns["idle_timeout_notification"] = IdleTimeoutNotification()  # Singleton
     user_ns["digest_list"] = DigestList()  # Singleton
@@ -3056,5 +3289,5 @@ def main():
     client.tear_down()
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     main()
